@@ -6,17 +6,17 @@ static int fastrand()
 	return (g_seed>>16) & 0x7FFF; 
 }
 
-static void
+static int
 fillMatrix(int **arr, int n, int flag) 
 {
-	int count = 0;
+	for (int i = 0; i < n; i++) { 
+	    for (int j = 0; j < n; j++) {
+		arr[i][j] = i * j;
+	    }
+	}
 
-	for(int i = 0; i < n; i++) 
-        	for(int j = 0; j < n; j++) 
-			if (flag)
-        	    		arr[i][j] = fastrand();
-			else
-				arr[i][j] = 0;
+	cout << "end of for: " << endl; 
+	return 0;
 }
 
 static void 
@@ -69,8 +69,8 @@ static void delete_2d_array(int **X){
 	free(X);
 }
 static void create_2d_array(int ***array, int block_size) {
-
     int *p = (int *)malloc(pow(block_size, 2)*sizeof(int));
+
     if(!p) {
         std::cout << "Malloc Failed !!!\n";
         return;
@@ -96,8 +96,7 @@ MM_rArB(int myrank,  int n, int p)
 	int **sub_matrix_X = NULL;
 	int **sub_matrix_Y = NULL;
 	int **sub_matrix_Z = NULL;	
-	cout<<"blocks"<<blocks<<endl;
-	cout<<"block size"<<block_size<<endl;
+
 	MPI_Status lu_status;
 	MPI_Status merge_status[p];
 	MPI_Status x_status[p];
@@ -109,17 +108,17 @@ MM_rArB(int myrank,  int n, int p)
 	int z_tag  = 102;
 	int rs_tag = 103;
 	int merge_tag = 104;
-	cout<<"initialized tags"<<endl;
+
 	create_2d_array(&sub_matrix_X, block_size);
 	create_2d_array(&sub_matrix_Y, block_size);
 	create_2d_array(&sub_matrix_Z, block_size);
-	cout <<"created successfully"<<endl;
+
 	for(int i= 0;i<block_size;i++){
 		for(int j=0;j<block_size;j++){
 			sub_matrix_Z[i][j] = 0;
 		}
 	}
-	cout<<"Z initialized"<<endl;
+
 	/*sub_matrix_X = (int**) malloc(sizeof(int*) * block_size);
 	for(int i = 0; i< block_size;i++)
 		sub_matrix_X[i] = (int*)malloc(block_size * sizeof(int));
@@ -134,10 +133,11 @@ MM_rArB(int myrank,  int n, int p)
 	//&sub_matrix_Y = (int***) malloc(sizeof(int*) * pow(block_size, 2));
 	cout <<"malloced sub_matrixY"<<sub_matrix_Y<<endl;
 	//&sub_matrix_Z = (int***) malloc(sizeof(int*) * pow(block_size, 2));*/
-	cout <<"malloced submatrix Z"<<sub_matrix_Z<<endl;
+	//cout <<"malloced submatrix Z"<<sub_matrix_Z<<endl;
 	cout<<"my rank"<<myrank<<endl;	
 	if (myrank == 0) {
-		for (int i = 0; i < block_size; i++) {
+		//cout << "my rank - inside myrank == 0" << endl;
+	    	for (int i = 0; i < block_size; i++) {
 	   		for (int j = 0; j < block_size; j++) {
            		    cout <<"X"<<X<<endl;
 			    sub_matrix_X[i][j] = *(*X + (i * n) + j);
@@ -251,54 +251,53 @@ static int input_valid(int argc){
 		return 0;
 }
 int main(int argc, char *argv[])
-{	//cout<<"argc"<<argc<<endl;
-	int ret = input_valid(argc);
-	//cout<<"ret is:"<<ret<<endl;
+{
+    	int ret = input_valid(argc);
+	
 	if (ret) {
 		std::cout << "Missing Input params - ibrun -n <processors> <binary> <matrix_size>\n";
 		exit(1);
 	}
-	//cout <<"outisede if"<<endl;
+	
 	int n = atoi(argv[1]);
-	//cout <<"n is"<<n <<endl;
 	int processors;
 	int myrank; 
+	
 	srand(time(NULL));
-	//cout <<"srand"<<endl;
 	g_seed=rand();
-	//cout <<"gseed set"<<endl;
+	
 	std::chrono::system_clock::time_point start;
 	std::chrono::system_clock::time_point finish;
-	//cout<<"Initialized variabled"<<endl;
 	MPI_Status status;
 
 	MPI_Init(&argc, &argv);
-	//MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
 	MPI_Comm_size(MPI_COMM_WORLD, &processors);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-	cout<<"set up done"<<endl;
 	
 	if (myrank == 0) {
-		X = (int**) malloc(sizeof(int*) * pow(n, 2));
-		cout<<"mallced X"<<X<<endl;
+		cout << "reached start of if" << endl;
+		create_2d_array(&X, n);
+		//X = malloc(sizeof(int *) * pow(n, 2));
+		cout << "after malloc " << endl;
 		fillMatrix(X, n, 1);
-		cout <<"filled Matrix X"<<endl;
-	} else if (myrank == 1) {
-		Y = (int**) malloc(sizeof(int*) * pow(n, 2));
-		cout<<"malloced Y"<<Y<<endl;
+		cout << "after fill x " << endl;
+		//Y = (int **) malloc(sizeof(int *) * pow(n, 2));
+		create_2d_array(&Y, n);
 		fillMatrix(Y, n, 1);
-		cout<<"Filled Matrix Y"<<endl;
-	} else if (myrank == 2) {
-		Z = (int**) malloc(sizeof(int*) * pow(n, 2));
-		cout<<"malloced Z"<<Z<<endl;
+		cout << "reached mid of if" << endl;
+		//Z = (int **) malloc(sizeof(int *) * pow(n, 2));
+		create_2d_array(&Z, n);
 		fillMatrix(Z, n, 0);
-		cout <<"filled matrix Z"<<endl;
+		cout << "reached end of if" << endl;
 	}
 
-	if (myrank == 0) 
+	if (myrank == 0) {
+	    cout << "My rank: inside if: " << myrank << endl;
 	    start = std::chrono::high_resolution_clock::now();
-	//cout<<"before calling rotatte function"<<endl;
+	}
+	cout << "My rank: " << myrank << endl;
 	
+
 	MM_rArB(myrank, n, processors);
 	cout <<"after calling rotate function"<<endl;
 	
