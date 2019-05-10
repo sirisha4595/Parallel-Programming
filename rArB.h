@@ -14,7 +14,7 @@ int g_seed;
 static int
 fastrand();
 
-static void
+static int
 fillMatrix(int **arr, int n, int flag);
 
 static void 
