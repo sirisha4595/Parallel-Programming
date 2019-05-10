@@ -65,39 +65,13 @@ int blocks, int block_size)
     	return block_M;
 }
 
-static void delete_2d_array(int **X){
-	free(X);
-}
-static void create_2d_array(int ***array, int block_size) {
-
-    int *p = (int *)malloc(pow(block_size, 2)*sizeof(int));
-    if(!p) {
-        std::cout << "Malloc Failed !!!\n";
-        return;
-    }
-
-    (*array) = (int**)malloc(block_size *sizeof(int*));
-    if (!(*array)) {
-       free(p);
-       std::cout << "Malloc Failed !!!\n";
-       return;
-    }
-
-    for (int i=0; i<block_size; i++) {
-       (*array)[i] = &(p[i*block_size]);
-    }
-    return;
-}
 static void 
-MM_rArB(int myrank,  int n, int p)
+MM_rArB(int n, int p)
 {
 	int blocks = sqrt(p);
-	int block_size = (n / sqrt(p));
-	int **sub_matrix_X = NULL;
-	int **sub_matrix_Y = NULL;
-	int **sub_matrix_Z = NULL;	
-	cout<<"blocks"<<blocks<<endl;
-	cout<<"block size"<<block_size<<endl;
+	int block_size = (n / sqrt_p);
+	int **sub_matrix_X, int **sub_matrix_Y, int **sub_matrix_Z;	
+
 	MPI_Status lu_status;
 	MPI_Status merge_status[p];
 	MPI_Status x_status[p];
@@ -109,54 +83,27 @@ MM_rArB(int myrank,  int n, int p)
 	int z_tag  = 102;
 	int rs_tag = 103;
 	int merge_tag = 104;
-	cout<<"initialized tags"<<endl;
-	create_2d_array(&sub_matrix_X, block_size);
-	create_2d_array(&sub_matrix_Y, block_size);
-	create_2d_array(&sub_matrix_Z, block_size);
-	cout <<"created successfully"<<endl;
-	for(int i= 0;i<block_size;i++){
-		for(int j=0;j<block_size;j++){
-			sub_matrix_Z[i][j] = 0;
-		}
-	}
-	cout<<"Z initialized"<<endl;
-	/*sub_matrix_X = (int**) malloc(sizeof(int*) * block_size);
-	for(int i = 0; i< block_size;i++)
-		sub_matrix_X[i] = (int*)malloc(block_size * sizeof(int));
-	sub_matrix_Y = (int**) malloc(sizeof(int*) * block_size);
-        for(int i = 0; i< block_size;i++)
-                sub_matrix_Y[i] = (int*)malloc(block_size * sizeof(int));
-	sub_matrix_Z = (int**) malloc(sizeof(int*) * block_size);
-        for(int i = 0; i< block_size;i++)
-                sub_matrix_Z[i] = (int*)malloc(block_size * sizeof(int));
-
-	cout <<"malloced sub matrix X"<<sub_matrix_X<<endl;
-	//&sub_matrix_Y = (int***) malloc(sizeof(int*) * pow(block_size, 2));
-	cout <<"malloced sub_matrixY"<<sub_matrix_Y<<endl;
-	//&sub_matrix_Z = (int***) malloc(sizeof(int*) * pow(block_size, 2));*/
-	cout <<"malloced submatrix Z"<<sub_matrix_Z<<endl;
-	cout<<"my rank"<<myrank<<endl;	
+	    
+	sub_matrix_X = (int *) malloc(sizeof(int) * pow(block_size, 2));
+	sub_matrix_Y = (int *) malloc(sizeof(int) * pow(block_size, 2));
+	sub_matrix_Z = (int *) malloc(sizeof(int) * pow(block_size, 2));
+	
 	if (myrank == 0) {
 		for (int i = 0; i < block_size; i++) {
 	   		for (int j = 0; j < block_size; j++) {
-           		    cout <<"X"<<X<<endl;
-			    sub_matrix_X[i][j] = *(*X + (i * n) + j);
-			    cout <<"sub_matX[i][j]"<<sub_matrix_X[i][j]<<endl;
-	   		    sub_matrix_Y[i][j] = *(*Y + (i * n)+ j);
-			    cout<<"sub matY[i][j]"<<sub_matrix_Y[i][j]<<endl;
-	   		    sub_matrix_Z[i][j] = *(*Z + (i * block_size) + j);
-			    cout<<"submatZ[i][j]"<<sub_matrix_Z[i][j]<<endl;
+           		    sub_matrix_X[i][j] = *(*X + i * n + j);
+	   		    sub_matrix_Y[i][j] = *(*Y + i * n + j);
+	   		    sub_matrix_Z[i][j] = *(*Z + i * block_size + j);
 	  		 }
-	 	}
-		cout<<"done with first for loop"<<endl; 
+	 	} 
 		for (int i = 1; i < blocks * blocks; i++) {
 			int *block_X = init_block(i, X, blocks, block_size);
 			MPI_Send(&block_X, block_size * block_size, MPI_INT, i, x_tag, MPI_COMM_WORLD);
 		
-			int *block_Y = init_block(i, Y, blocks, block_size);
+			int *block_Y = init_block(i, Y, blocks, block_size)
 			MPI_Send(&block_Y, block_size * block_size, MPI_INT, i, y_tag, MPI_COMM_WORLD);
 			
-			int *block_Z = init_block(i, Z, blocks, block_size);
+			int *block_Z = init_block(i, Z, blocks, block_size)
 			MPI_Send(&block_Z, block_size * block_size, MPI_INT, i, z_tag, MPI_COMM_WORLD);
 
 			free(block_X);
@@ -164,13 +111,9 @@ MM_rArB(int myrank,  int n, int p)
 			free(block_Z);
 		}
 	} else if (myrank != 0) {
-		cout<<"before 1st MPIREc"<<endl;
 		MPI_Recv(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, 0, x_tag, MPI_COMM_WORLD, &x_status[myrank]);
-		cout<<"1st MPIRecv"<<endl;
 		MPI_Recv(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, 0, y_tag, MPI_COMM_WORLD, &y_status[myrank]);
-		cout<<"2nd MPIRecv"<<endl;	
 		MPI_Recv(&(sub_matrix_Z[0][0]), pow(block_size, 2), MPI_INT, 0, z_tag, MPI_COMM_WORLD, &z_status[myrank]);
-		cout<<"3rd MPI REcv "<<endl;
 	}
 	
 	if (myrank > -1) {
@@ -194,12 +137,12 @@ MM_rArB(int myrank,  int n, int p)
 	    int rec_yproc = (blocks * rec_yrow) + rec_ycol;
 
 	    MPI_Send(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, send_xproc, rs_tag, MPI_COMM_WORLD);
-	    MPI_Recv(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, rec_xproc, rs_tag, MPI_COMM_WORLD, &lu_status);
+	    MPI_Recv(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, rec_xproc, sr_tag, MPI_COMM_WORLD, &lu_status);
 
-	    MPI_Send(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, send_xproc, rs_tag, MPI_COMM_WORLD);
-	    MPI_Recv(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, rec_xproc, rs_tag, MPI_COMM_WORLD, &lu_status);
+	    MPI_Send(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, send_xproc, sr_tag, MPI_COMM_WORLD);
+	    MPI_Recv(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, rec_xproc, sr_tag, MPI_COMM_WORLD, &lu_status);
 
-	   for (int l = 1; l < blocks; l++) {
+	   for (int l = 1; i < blocks; l++) {
 		MMultiply(sub_matrix_X, sub_matrix_Y, sub_matrix_Z,
 				0, 0, 0, 0, 0, 0, block_size);
 		send_xrow = xy_row;
@@ -218,11 +161,11 @@ MM_rArB(int myrank,  int n, int p)
 		rec_ycol  = xy_col;
 		rec_yproc = (blocks * rec_yrow) + rec_ycol;
 
-		MPI_Send(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, send_xproc, rs_tag, MPI_COMM_WORLD);
-		MPI_Recv(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, rec_xproc,rs_tag, MPI_COMM_WORLD, &lu_status);
+		MPI_Send(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, send_xproc, sr_tag, MPI_COMM_WORLD);
+		MPI_Recv(&(sub_matrix_X[0][0]), pow(block_size, 2), MPI_INT, rec_xproc, sr_tag, MPI_COMM_WORLD, &lu_status);
 
 		MPI_Send(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, send_xproc, rs_tag, MPI_COMM_WORLD);
-		MPI_Recv(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, rec_xproc, rs_tag, MPI_COMM_WORLD, &lu_status);
+		MPI_Recv(&(sub_matrix_Y[0][0]), pow(block_size, 2), MPI_INT, rec_xproc, sr_tag, MPI_COMM_WORLD, &lu_status);
 	   }
 
 	   if (myrank != 0)
@@ -233,7 +176,7 @@ MM_rArB(int myrank,  int n, int p)
 	       
 		for (int i = 1; i < pow(blocks, 2); i++) {
 			MPI_Recv(update_Z, pow(block_size, 2) , MPI_INT, i, merge_tag, MPI_COMM_WORLD, &merge_status[i]);
-			updateZ(update_Z, i, Z, n , p);
+			updateZ(temp, i, Z, n , p);
 	       }
 	       free(update_Z);
 	   }
@@ -242,73 +185,52 @@ MM_rArB(int myrank,  int n, int p)
 	   free(sub_matrix_Y);
 	   free(sub_matrix_Z);
 
+	   return 0;
 	}
 }
-static int input_valid(int argc){
-	if(argc != 2)
-		return 1;
-	else 
-		return 0;
-}
+
 int main(int argc, char *argv[])
-{	//cout<<"argc"<<argc<<endl;
+{
 	int ret = input_valid(argc);
-	//cout<<"ret is:"<<ret<<endl;
 	if (ret) {
 		std::cout << "Missing Input params - ibrun -n <processors> <binary> <matrix_size>\n";
 		exit(1);
 	}
-	//cout <<"outisede if"<<endl;
+
 	int n = atoi(argv[1]);
-	//cout <<"n is"<<n <<endl;
-	int processors;
 	int myrank; 
 	srand(time(NULL));
-	//cout <<"srand"<<endl;
 	g_seed=rand();
-	//cout <<"gseed set"<<endl;
-	std::chrono::system_clock::time_point start;
-	std::chrono::system_clock::time_point finish;
-	//cout<<"Initialized variabled"<<endl;
+
 	MPI_Status status;
 
 	MPI_Init(&argc, &argv);
-	//MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-	MPI_Comm_size(MPI_COMM_WORLD, &processors);
 	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-	cout<<"set up done"<<endl;
-	
+	MPI_Comm_size(MPI_COMM_WORLD, &processors);
+
 	if (myrank == 0) {
-		X = (int**) malloc(sizeof(int*) * pow(n, 2));
-		cout<<"mallced X"<<X<<endl;
-		fillMatrix(X, n, 1);
-		cout <<"filled Matrix X"<<endl;
+		X = (int *) malloc(sizeof(int) * pow(n, 2));
+		fillMatrix(X, n);
 	} else if (myrank == 1) {
-		Y = (int**) malloc(sizeof(int*) * pow(n, 2));
-		cout<<"malloced Y"<<Y<<endl;
-		fillMatrix(Y, n, 1);
-		cout<<"Filled Matrix Y"<<endl;
+		Y = (int *) malloc(sizeof(int) * pow(n, 2));
+		fillMatrix(Y, n);
 	} else if (myrank == 2) {
-		Z = (int**) malloc(sizeof(int*) * pow(n, 2));
-		cout<<"malloced Z"<<Z<<endl;
-		fillMatrix(Z, n, 0);
-		cout <<"filled matrix Z"<<endl;
+		Z = (int *) malloc(sizeof(int) * pow(n, 2));
+		fillMatrix0(Z, n);
 	}
 
 	if (myrank == 0) 
-	    start = std::chrono::high_resolution_clock::now();
-	//cout<<"before calling rotatte function"<<endl;
-	
-	MM_rArB(myrank, n, processors);
-	cout <<"after calling rotate function"<<endl;
+	    auto start = std::chrono::high_resolution_clock::now();
+
+	MM_rotate_A_rotate_B(n, processors, myrank);
 	
 	if (myrank == 0) {
-		finish = std::chrono::high_resolution_clock::now();
+		auto finish = std::chrono::high_resolution_clock::now();
 		std::chrono::duration<double> elapsed = finish - start;
 		std::cout << "Elapsed time: " << elapsed.count() << " s\n";
-		delete_2d_array(X);
-		delete_2d_array(Y);
-		delete_2d_array(Z);
+		delete_2d_array(&X);
+		delete_2d_array(&Y);
+		delete_2d_array(&Z);
 	}
 	
 	MPI_Finalize();
