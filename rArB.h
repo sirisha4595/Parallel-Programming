@@ -30,4 +30,9 @@ init_block (int myrank, int **matrix,
 int blocks, int block_size);
 
 static void
-MM_rArB(int n, int p);
+MM_rArB(int myrank, int n, int p);
+
+static void delete_2d_array(int **X);
+
+static int input_valid(int argc);
+static void create_2d_array(int ***array, int block_size); 
