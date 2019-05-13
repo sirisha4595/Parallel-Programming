@@ -224,56 +224,59 @@ MM_rArB(int n, int p, int rank)
     return;
 }
 
-int
-main(int argc, char *argv[])
+static void 
+init_var(int argc, char **argv,
+int *n, int &myrank, int &p)
 {
-    if(argc < 2)  {
-        std::cout << "Missing Input params - ibrun -n <processors> <binary> <matrix_size>\n";
-        return 1;
-    }
+    if (argc < 2)
+	goto out;
 
-    int n = pow(2, atoi(argv[1]));
-
+    *n = pow(2, atoi(argv[1]));
     srand(time(NULL));
-    g_seed=rand();
-
-    int myrank, v = 121;
+    g_seed = rand();
+    
     MPI_Status status;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-    MPI_Comm_size(MPI_COMM_WORLD, &processors);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
     
-    if(myrank == 0) {
-        create_2d_array(&X, n, n);
-        fillMatrix(X, n);
-        //printMatrix(X, n);
-
-        create_2d_array(&Y, n, n);
-        fillMatrix(Y, n);
-
-        create_2d_array(&Z, n, n);
-        init_sub_matrix(Z, n, n);
+    if (myrank == 0) {
+        create_2d_array(&X, *n, *n);
+        fillMatrix(X, *n);
+        create_2d_array(&Y, *n, *n);
+        fillMatrix(Y, *n);
+        create_2d_array(&Z, *n, *n);
+        init_sub_matrix(Z, *n, *n);
     }
+    return;
+out:
+    cout << "Invalid Input: mpirun -n #processors ./rArB matrix_size" << endl;
+    exit(0);
+}
 
-    using namespace std::chrono;    
-    high_resolution_clock::time_point start_time = high_resolution_clock::now();
+int main(int argc, char *argv[])
+{
+    int n, myrank, p;
+    std::chrono::system_clock::time_point start;
+    std::chrono::system_clock::time_point finish;
+
+    init_var(argc, argv, &n, myrank, processors);
+    if (myrank == 0)
+	start = std::chrono::high_resolution_clock::now();
 
     MM_rArB(n, processors, myrank);
 
-    high_resolution_clock::time_point end_time = high_resolution_clock::now();
-    duration<double> time_span = duration_cast<duration<double>>(end_time - start_time);
-
     if (myrank == 0) {
-       delete_2d_array(&X);
-       delete_2d_array(&Y);
-       delete_2d_array(&Z);
+	finish = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = finish - start;
+	cout << "Elapsed time: " << elapsed.count() << " s"<< endl;
+
+	delete_2d_array(&X);
+	delete_2d_array(&Y);
+	delete_2d_array(&Z);
     }
 
-    if(myrank == 0) {
-        std::cout << "Exectution Time: " << time_span.count() << " seconds.";
-        std::cout << std::endl;
-    }
- 
     MPI_Finalize();
-    return 1;
+    
+    return 0;
 }
