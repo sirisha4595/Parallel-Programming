@@ -3,8 +3,12 @@ using namespace std;
 
 static int fastrand()
 {
-    g_seed = (214013 * g_seed + 2531011);
-    return (g_seed>>16) & 0x7FFF; 
+    int ret;
+    
+    g_seed = (343243 * g_seed + 31231233);
+    ret = (g_seed >> 16) & 0x7FFF; 
+
+    return ret;
 }
 
 static void
@@ -30,7 +34,7 @@ create_2d_array(int ***array, int n, int m)
 }
 
 static void
-delete_2d_array(int ***array)
+free_matrix(int ***array)
 {
     free(&((*array)[0][0]));
     free(*array);
@@ -38,29 +42,26 @@ delete_2d_array(int ***array)
 }
 
 static void
-fillMatrix(int **arr, int n)
+init_matrix(int **arr, int n, int flag)
 {
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
-            arr[i][j] = fastrand();        
+	    if (flag == 1)
+            	arr[i][j] = fastrand();
+	    else
+		arr[i][j] = 0;
 }
 
 static void
-init_sub_matrix(int **arr, int m, int n)
-{
-    for (int i = 0; i < m; i++)
-        for (int j = 0; j< m; j++)
-            arr[i][j] = 0;
-}
-
-static void
-Matrix_Multiply(int **X, int **Y, int **Z, int x_row, int x_col, 
-int y_row, int y_col, int z_row, int z_col, int n)
+MMultiply(int **X, int **Y, int **Z,
+int x_row, int x_col, int y_row, int y_col,
+int z_row, int z_col, int n)
 {
     for (int i = 0; i < n; i++)
-        for (int k = 0; k<n; k++)
+        for (int k = 0; k < n; k++)
             for (int j = 0; j < n; j++)
-                Z[z_row + i][z_col + j] += X[x_row + i][x_col + k] * Y[y_row + k][y_col + j];
+                Z[z_row + i][z_col + j] += X[x_row + i][x_col + k] \
+					   * Y[y_row + k][y_col + j];
             
 }
 
@@ -126,7 +127,7 @@ MM_rArB(int n, int p, int rank)
     create_2d_array(&sub_matrix_X, block_size, block_size);
     create_2d_array(&sub_matrix_Y, block_size, block_size);
     create_2d_array(&sub_matrix_Z, block_size, block_size);
-    init_sub_matrix(sub_matrix_Z, block_size, block_size);
+    init_matrix(sub_matrix_Z, block_size, 0);
 
     if (rank == 0) {
 	for (int i = 0; i < block_size; ++i) {
@@ -182,7 +183,7 @@ MM_rArB(int n, int p, int rank)
     MPI_Sendrecv_replace(&(sub_matrix_Y[0][0]), block_size * block_size, MPI_INT, send_yproc, rs_tag, rec_yproc, rs_tag, MPI_COMM_WORLD, &lu_status);
 
     for (int l = 0; l < blocks; l++) {
-        Matrix_Multiply(sub_matrix_X, sub_matrix_Y, sub_matrix_Z,
+        MMultiply(sub_matrix_X, sub_matrix_Y, sub_matrix_Z,
                         0, 0, 0, 0, 0, 0, block_size);
 
         send_xcol = (blocks + xy_col - 1) % blocks; 
@@ -217,9 +218,9 @@ MM_rArB(int n, int p, int rank)
         }
     }
 
-    delete_2d_array(&sub_matrix_X);
-    delete_2d_array(&sub_matrix_Y);
-    delete_2d_array(&sub_matrix_Z);
+    free_matrix(&sub_matrix_X);
+    free_matrix(&sub_matrix_Y);
+    free_matrix(&sub_matrix_Z);
     
     return;
 }
@@ -242,11 +243,11 @@ int *n, int &myrank, int &p)
     
     if (myrank == 0) {
         create_2d_array(&X, *n, *n);
-        fillMatrix(X, *n);
+        init_matrix(X, *n, 1);
         create_2d_array(&Y, *n, *n);
-        fillMatrix(Y, *n);
+        init_matrix(Y, *n, 1);
         create_2d_array(&Z, *n, *n);
-        init_sub_matrix(Z, *n, *n);
+        init_matrix(Z, *n, 0);
     }
     return;
 out:
@@ -260,20 +261,20 @@ int main(int argc, char *argv[])
     std::chrono::system_clock::time_point start;
     std::chrono::system_clock::time_point finish;
 
-    init_var(argc, argv, &n, myrank, processors);
+    init_var(argc, argv, &n, myrank, p);
     if (myrank == 0)
 	start = std::chrono::high_resolution_clock::now();
 
-    MM_rArB(n, processors, myrank);
+    MM_rArB(n, p, myrank);
 
     if (myrank == 0) {
 	finish = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsed = finish - start;
 	cout << "Elapsed time: " << elapsed.count() << " s"<< endl;
 
-	delete_2d_array(&X);
-	delete_2d_array(&Y);
-	delete_2d_array(&Z);
+	free_matrix(&X);
+	free_matrix(&Y);
+	free_matrix(&Z);
     }
 
     MPI_Finalize();
