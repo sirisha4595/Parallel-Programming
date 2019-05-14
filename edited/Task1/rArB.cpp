@@ -12,32 +12,23 @@ static int fastrand()
 }
 
 static void
-create_2d_array(int ***array, int n, int m)
+new_matrix(int ***array, int n)
 {
-    int *p = (int *)malloc(n*m*sizeof(int));
-    if(!p) {
-        std::cout << "Malloc Failed !!!\n";
-        return;
-    }
-
-    (*array) = (int**)malloc(n*sizeof(int*));
-    if (!(*array)) {
-       free(p);
-       std::cout << "Malloc Failed !!!\n";
-       return;
-    }
-
-    for (int i=0; i<n; i++) {
-       (*array)[i] = &(p[i*m]);
-    }
+    int *new_matrix = (int *) malloc(pow(n, 2) * sizeof(int));
+    
+    (*array) = (int **) malloc(n * sizeof(int *));
+    
+    for (int i = 0; i < n; i++)
+       (*array)[i] = &(new_matrix[i * n]);
+    
     return;
 }
 
 static void
-free_matrix(int ***array)
+free_matrix(int ***arr)
 {
-    free(&((*array)[0][0]));
-    free(*array);
+    free(&(*(arr)[0][0]));
+    free(*arr);
     return;
 }
 
@@ -66,51 +57,44 @@ int z_row, int z_col, int n)
 }
 
 static void
-update_result(int *temp, int rank, int **Z, int n , int p)
+updateZ(int *temp, int rank, int **Z,
+int block_size, int blocks)
 {
-    int blocks = std::sqrt(p);
-    int block_size = n / blocks;
- 
     int row = rank / blocks;
     int col = rank % blocks;
-    int *trav = temp;
+    int count = 0;
 
-    for (int i = row * block_size; i < (row * block_size) + block_size; i++) {
-        for (int j = col * block_size; j < (col * block_size) + block_size; j++) {
-            Z[i][j] += *trav;
-            trav++;
-        }
-    }
+    for (int i = row * block_size; i < (row * block_size) + block_size; i++)
+        for (int j = col * block_size; j < (col * block_size) + block_size; j++)
+            Z[i][j] += *(temp + count++);
 }
 
-int * get_buff_copy(int rank,int  **arr, int size, int procs) {
-    int blocks = std::sqrt(procs);
-    int block_size = size / blocks;
-
-    int * res = (int *)malloc(block_size*block_size*sizeof(int));
-    int *trav = res;
+int *
+clone(int rank, int  **arr,
+int block_size, int blocks)
+{
     int row = rank / blocks;
     int col = rank % blocks;
+    int count = 0;
 
-    for (int i = row * block_size; i < row * block_size + block_size; ++i) {
-        for (int j = col * block_size; j < col * block_size + block_size; ++j) {
-            *trav = arr[i][j];
-            trav++;
-        }
-    }
+    int *ret = (int *) malloc(pow(block_size, 2) * sizeof(int));
 
-    return res;
+    for (int i = block_size * row; i < (block_size * row) + block_size; i++)
+        for (int j = block_size * col; j < (block_size * col) + block_size; j++)
+		*(ret + count++) = arr[i][j];
+
+    return ret;
 }
 
 void
-MM_rArB(int n, int p, int rank) 
+MM_rArB(int rank, int n, int p) 
 {
     int blocks = std::sqrt(p);
     int block_size = n / blocks;
 
-    int **sub_matrix_X = NULL;
-    int **sub_matrix_Y = NULL;
-    int **sub_matrix_Z = NULL;
+    int **sub_X = NULL;
+    int **sub_Y = NULL;
+    int **sub_Z = NULL;
 
     MPI_Status lu_status;
     MPI_Status merge_status[p];
@@ -124,24 +108,24 @@ MM_rArB(int n, int p, int rank)
     int rs_tag = 04;
     int merge_tag = 05;
 
-    create_2d_array(&sub_matrix_X, block_size, block_size);
-    create_2d_array(&sub_matrix_Y, block_size, block_size);
-    create_2d_array(&sub_matrix_Z, block_size, block_size);
-    init_matrix(sub_matrix_Z, block_size, 0);
+    new_matrix(&sub_X, block_size);
+    new_matrix(&sub_Y, block_size);
+    new_matrix(&sub_Z, block_size);
+    init_matrix(sub_Z, block_size, 0);
 
     if (rank == 0) {
 	for (int i = 0; i < block_size; ++i) {
 	   for (int j = 0; j < block_size; ++j) {
-               sub_matrix_X[i][j] = *(*X + i * n + j);
-	       sub_matrix_Y[i][j] = *(*Y + i * n + j);
-	       sub_matrix_Z[i][j] = *(*Z + i * block_size + j);
+               sub_X[i][j] = *(*X + i * n + j);
+	       sub_Y[i][j] = *(*Y + i * n + j);
+	       sub_Z[i][j] = *(*Z + i * block_size + j);
 	   }
 	}
 
         for (int i = 1; i < blocks * blocks; ++i) {
-            int *sub_X = get_buff_copy(i, X, n, p);
-            int *sub_Y = get_buff_copy(i, Y, n, p);
-            int *sub_Z = get_buff_copy(i, Z, n, p);
+            int *sub_X = clone(i, X, block_size, blocks);
+            int *sub_Y = clone(i, Y, block_size, blocks);
+            int *sub_Z = clone(i, Z, block_size, blocks);
 
             MPI_Send(sub_X, block_size * block_size, MPI_INT, i, x_tag, MPI_COMM_WORLD);
 	    MPI_Send(sub_Y, block_size * block_size, MPI_INT, i, y_tag, MPI_COMM_WORLD);
@@ -154,73 +138,72 @@ MM_rArB(int n, int p, int rank)
     } 
 
     if (rank > 0) {
-        MPI_Recv(&(sub_matrix_X[0][0]), block_size * block_size, MPI_INT, 0, x_tag, MPI_COMM_WORLD, &x_status[rank]);
-        MPI_Recv(&(sub_matrix_Y[0][0]), block_size * block_size, MPI_INT, 0, y_tag, MPI_COMM_WORLD, &y_status[rank]);
-        MPI_Recv(&(sub_matrix_Z[0][0]), block_size * block_size, MPI_INT, 0, z_tag, MPI_COMM_WORLD, &z_status[rank]);
+        MPI_Recv(&(sub_X[0][0]), block_size * block_size, MPI_INT, 0, x_tag, MPI_COMM_WORLD, &x_status[rank]);
+        MPI_Recv(&(sub_Y[0][0]), block_size * block_size, MPI_INT, 0, y_tag, MPI_COMM_WORLD, &y_status[rank]);
+        MPI_Recv(&(sub_Z[0][0]), block_size * block_size, MPI_INT, 0, z_tag, MPI_COMM_WORLD, &z_status[rank]);
+    }
+    if (rank > - 1) {
+    	int xy_row = rank / blocks; 
+    	int xy_col = rank % blocks;
+
+    	int send_xrow = xy_row; 
+    	int send_xcol = (blocks + xy_col - xy_row) % blocks; 
+    	int send_xproc = (blocks * send_xrow ) + send_xcol;
+
+    	int rec_xrow = xy_row;
+    	int rec_xcol = (blocks + xy_col + xy_row) % blocks; 
+    	int rec_xproc = (blocks * rec_xrow ) + rec_xcol;
+
+    	int send_yrow = (blocks + xy_row - xy_col) % blocks; 
+    	int send_ycol = xy_col; 
+    	int send_yproc = (blocks * send_yrow ) + send_ycol;
+	
+	int rec_yrow = (blocks + xy_row + xy_col) % blocks;
+   	int rec_ycol = xy_col; 
+   	int rec_yproc = (blocks * rec_yrow ) + rec_ycol;
+
+    	MPI_Sendrecv_replace(&(sub_X[0][0]), block_size * block_size, MPI_INT, send_xproc, rs_tag, rec_xproc, rs_tag, MPI_COMM_WORLD, &lu_status);
+    	MPI_Sendrecv_replace(&(sub_Y[0][0]), block_size * block_size, MPI_INT, send_yproc, rs_tag, rec_yproc, rs_tag, MPI_COMM_WORLD, &lu_status);
+
+    	for (int l = 0; l < blocks; l++) {
+        	MMultiply(sub_X, sub_Y, sub_Z, 0, 0, 0, 0, 0, 0, block_size);
+
+        	send_xcol = (blocks + xy_col - 1) % blocks; 
+        	send_xproc = (blocks * send_xrow ) + send_xcol;
+
+        	rec_xcol = (blocks + xy_col + 1) % blocks; 
+        	rec_xproc = (blocks * rec_xrow ) + rec_xcol;
+
+        	send_yrow = (blocks + xy_row - 1) % blocks; 
+        	send_ycol = xy_col; 
+        	send_yproc = (blocks * send_yrow ) + send_ycol;
+
+        	rec_yrow = (blocks + xy_row + 1) % blocks;
+        	rec_ycol = xy_col; 
+        	rec_yproc = (blocks * rec_yrow ) + rec_ycol;
+
+       	 	MPI_Sendrecv_replace(&(sub_X[0][0]), block_size * block_size, MPI_INT,
+                		     send_xproc, rs_tag, rec_xproc, rs_tag, MPI_COMM_WORLD, &lu_status);
+        	MPI_Sendrecv_replace(&(sub_Y[0][0]), block_size * block_size, MPI_INT,
+                                     send_yproc, rs_tag, rec_yproc, rs_tag, MPI_COMM_WORLD, &lu_status);
+    	}
+
+    	if (rank != 0)
+		MPI_Send(&(sub_Z[0][0]), block_size * block_size, MPI_INT, 0, merge_tag, MPI_COMM_WORLD);
+    	if (rank == 0) {
+		updateZ(&(sub_Z[0][0]), 0, Z, block_size, blocks);
+	        for (int i = 1; i < pow(blocks, 2); ++i) {
+	            int *tempZ = (int *) malloc(pow(block_size, 2) * sizeof(int));
+		    MPI_Recv(tempZ, block_size * block_size, MPI_INT, i, merge_tag, MPI_COMM_WORLD, &merge_status[i]);
+		    updateZ(tempZ, i, Z, block_size, blocks);
+		    free(tempZ);
+        	}
+  	  }
     }
 
-    int xy_row = rank / blocks; 
-    int xy_col = rank % blocks;
-
-    int send_xrow = xy_row; 
-    int send_xcol = (blocks + xy_col - xy_row) % blocks; 
-    int send_xproc = (blocks * send_xrow ) + send_xcol;
-
-    int rec_xrow = xy_row;
-    int rec_xcol = (blocks + xy_col + xy_row) % blocks; 
-    int rec_xproc = (blocks * rec_xrow ) + rec_xcol;
-
-    int send_yrow = (blocks + xy_row - xy_col) % blocks; 
-    int send_ycol = xy_col; 
-    int send_yproc = (blocks * send_yrow ) + send_ycol;
-
-    int rec_yrow = (blocks + xy_row + xy_col) % blocks;
-    int rec_ycol = xy_col; 
-    int rec_yproc = (blocks * rec_yrow ) + rec_ycol;
-
-    MPI_Sendrecv_replace(&(sub_matrix_X[0][0]), block_size * block_size, MPI_INT, send_xproc, rs_tag, rec_xproc, rs_tag, MPI_COMM_WORLD, &lu_status);
-
-    MPI_Sendrecv_replace(&(sub_matrix_Y[0][0]), block_size * block_size, MPI_INT, send_yproc, rs_tag, rec_yproc, rs_tag, MPI_COMM_WORLD, &lu_status);
-
-    for (int l = 0; l < blocks; l++) {
-        MMultiply(sub_matrix_X, sub_matrix_Y, sub_matrix_Z,
-                        0, 0, 0, 0, 0, 0, block_size);
-
-        send_xcol = (blocks + xy_col - 1) % blocks; 
-        send_xproc = (blocks * send_xrow ) + send_xcol;
-
-        rec_xcol = (blocks + xy_col + 1) % blocks; 
-        rec_xproc = (blocks * rec_xrow ) + rec_xcol;
-
-        send_yrow = (blocks + xy_row - 1) % blocks; 
-        send_ycol = xy_col; 
-        send_yproc = (blocks * send_yrow ) + send_ycol;
-
-        rec_yrow = (blocks + xy_row + 1) % blocks;
-        rec_ycol = xy_col; 
-        rec_yproc = (blocks * rec_yrow ) + rec_ycol;
-
-        MPI_Sendrecv_replace(&(sub_matrix_X[0][0]), block_size * block_size, MPI_INT,
-                                 send_xproc, rs_tag, rec_xproc, rs_tag, MPI_COMM_WORLD, &lu_status);
-        MPI_Sendrecv_replace(&(sub_matrix_Y[0][0]), block_size * block_size, MPI_INT,
-                                 send_yproc, rs_tag, rec_yproc, rs_tag, MPI_COMM_WORLD, &lu_status);
-    }
-
-    if (rank != 0)
-	MPI_Send(&(sub_matrix_Z[0][0]), block_size * block_size, MPI_INT, 0, merge_tag, MPI_COMM_WORLD);
-    if (rank == 0) {
-	update_result(&(sub_matrix_Z[0][0]), 0, Z, n , p);
-        for (int i = 1; i < blocks * blocks; ++i) {
-            int *temp = (int *)malloc(block_size*block_size*sizeof(int));
-            MPI_Recv(temp, block_size * block_size, MPI_INT, i, merge_tag, MPI_COMM_WORLD, &merge_status[i]);
-            update_result(temp, i, Z, n , p);
-            free(temp);
-        }
-    }
-
-    free_matrix(&sub_matrix_X);
-    free_matrix(&sub_matrix_Y);
-    free_matrix(&sub_matrix_Z);
+    free_matrix(&sub_X);
+    free_matrix(&sub_Y);
+    free_matrix(&sub_Z);
     
     return;
 }
@@ -242,11 +225,11 @@ int *n, int &myrank, int &p)
     MPI_Comm_size(MPI_COMM_WORLD, &p);
     
     if (myrank == 0) {
-        create_2d_array(&X, *n, *n);
+        new_matrix(&X, *n);
         init_matrix(X, *n, 1);
-        create_2d_array(&Y, *n, *n);
+        new_matrix(&Y, *n);
         init_matrix(Y, *n, 1);
-        create_2d_array(&Z, *n, *n);
+        new_matrix(&Z, *n);
         init_matrix(Z, *n, 0);
     }
     return;
@@ -265,7 +248,7 @@ int main(int argc, char *argv[])
     if (myrank == 0)
 	start = std::chrono::high_resolution_clock::now();
 
-    MM_rArB(n, p, myrank);
+    MM_rArB(myrank, n, p);
 
     if (myrank == 0) {
 	finish = std::chrono::high_resolution_clock::now();
