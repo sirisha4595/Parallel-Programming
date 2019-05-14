@@ -12,7 +12,7 @@ static int fastrand()
 }
 
 static void
-new_matrix(int ***array, int n)
+new_matrix(int ***array, int n, int flag)
 {
     int *new_matrix = (int *) malloc(pow(n, 2) * sizeof(int));
     
@@ -20,7 +20,9 @@ new_matrix(int ***array, int n)
     
     for (int i = 0; i < n; i++)
        (*array)[i] = &(new_matrix[i * n]);
-    
+
+    if (flag == 1)
+	init_matrix(*array, n, 0);
     return;
 }
 
@@ -108,10 +110,9 @@ MM_rArB(int rank, int n, int p)
     int rs_tag = 04;
     int merge_tag = 05;
 
-    new_matrix(&sub_X, block_size);
-    new_matrix(&sub_Y, block_size);
-    new_matrix(&sub_Z, block_size);
-    init_matrix(sub_Z, block_size, 0);
+    new_matrix(&sub_X, block_size, 0);
+    new_matrix(&sub_Y, block_size, 0);
+    new_matrix(&sub_Z, block_size, 1);
 
     if (rank == 0) {
 	for (int i = 0; i < block_size; ++i) {
@@ -225,12 +226,9 @@ int *n, int &myrank, int &p)
     MPI_Comm_size(MPI_COMM_WORLD, &p);
     
     if (myrank == 0) {
-        new_matrix(&X, *n);
-        init_matrix(X, *n, 1);
-        new_matrix(&Y, *n);
-        init_matrix(Y, *n, 1);
-        new_matrix(&Z, *n);
-        init_matrix(Z, *n, 0);
+        new_matrix(&X, *n, 0);
+        new_matrix(&Y, *n, 0);
+        new_matrix(&Z, *n, 1);
     }
     return;
 out:

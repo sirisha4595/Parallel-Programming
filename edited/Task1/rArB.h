@@ -15,7 +15,7 @@ int g_seed;
 static int fastrand();
 
 static void
-new_matrix(int ***array, int n);
+new_matrix(int ***array, int n, int flag);
 
 static void
 free_matrix(int ***arr);
