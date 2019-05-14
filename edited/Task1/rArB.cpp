@@ -27,6 +27,14 @@ new_matrix(int ***array, int n, int flag)
 }
 
 static void
+clean_up(int ***X, int ***Y, int ***Z)
+{
+    free_matrix(X);
+    free_matrix(Y);
+    free_matrix(Z);
+}
+
+static void
 free_matrix(int ***arr)
 {
     free(&(*(arr)[0][0]));
@@ -133,9 +141,9 @@ MM_rArB(int rank, int n, int p)
 	    MPI_Send(sub_Z, block_size * block_size, MPI_INT, i, z_tag, MPI_COMM_WORLD);
 
             free(sub_X);
-            free(sub_Y);
-            free(sub_Z);
-        }
+	    free(sub_Y);
+	    free(sub_Z);
+	    }
     } 
 
     if (rank > 0) {
@@ -202,10 +210,8 @@ MM_rArB(int rank, int n, int p)
   	  }
     }
 
-    free_matrix(&sub_X);
-    free_matrix(&sub_Y);
-    free_matrix(&sub_Z);
-    
+    clean_up(&sub_X, &sub_Y, &sub_Z);
+        
     return;
 }
 
