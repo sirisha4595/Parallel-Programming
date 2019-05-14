@@ -3,37 +3,42 @@
 #include <mpi.h>
 #include <algorithm>
 #include <chrono>
+
 using namespace std;
 
-//idt anything here will change 
 int **X;
 int **Y;
 int **Z;
 
 int g_seed;
 
-static int
-fastrand();
+static int fastrand();
 
-static int
-fillMatrix(int **arr, int n, int flag);
+static void
+new_matrix(int ***array, int n);
+
+static void
+free_matrix(int ***arr);
+
+static void
+init_matrix(int **arr, int n, int flag);
 
 static void 
-MMultiply(int **X, int **Y, int **Z, int x_row, int x_col,
-int y_row, int y_col, int z_row, int z_col, int n);
+MMultiply(int **X, int **Y, int **Z,
+int x_row, int x_col, int y_row, int y_col,
+int z_row, int z_col, int n);
 
 static void
 updateZ(int *updateZ, int myrank,
 int **Z, int blocks , int block_size);
 
 static int *
-init_block (int myrank, int **matrix,
+clone(int rank, int  **arr,
 int blocks, int block_size);
 
 static void
 MM_rArB(int myrank, int n, int p);
 
-static void delete_2d_array(int **X);
-
-static int input_valid(int argc);
-static void create_2d_array(int ***array, int block_size); 
+static void 
+init_var(int argc, char **argv,
+int *n, int &myrank, int &p);

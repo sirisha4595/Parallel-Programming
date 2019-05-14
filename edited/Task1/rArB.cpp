@@ -69,7 +69,7 @@ int block_size, int blocks)
             Z[i][j] += *(temp + count++);
 }
 
-int *
+static int *
 clone(int rank, int  **arr,
 int block_size, int blocks)
 {
@@ -86,7 +86,7 @@ int block_size, int blocks)
     return ret;
 }
 
-void
+static void
 MM_rArB(int rank, int n, int p) 
 {
     int blocks = std::sqrt(p);
